@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/course_assistant/__init__.py
+src/course_assistant/cli.py
+src/trusted_course_assistant.egg-info/PKG-INFO
+src/trusted_course_assistant.egg-info/SOURCES.txt
+src/trusted_course_assistant.egg-info/dependency_links.txt
+src/trusted_course_assistant.egg-info/entry_points.txt
+src/trusted_course_assistant.egg-info/top_level.txt

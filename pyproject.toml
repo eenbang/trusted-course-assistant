@@ -9,5 +9,8 @@ description = "A course-material research assistant focused on traceable answers
 requires-python = ">=3.10"
 dependencies = []
 
+[project.scripts]
+course-assistant = "course_assistant.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
