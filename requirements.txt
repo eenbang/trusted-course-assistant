@@ -1,0 +1,6 @@
+pypdf
+scikit-learn
+fonttools
+openai
+python-dotenv
+streamlit

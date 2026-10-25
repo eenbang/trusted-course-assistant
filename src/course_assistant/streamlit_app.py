@@ -1,0 +1,102 @@
+import sys
+import tempfile
+from pathlib import Path
+
+import streamlit as st
+
+# 让网页程序能找到 src/course_assistant/ 里的现有代码。
+# 这是为了配合当前项目的目录结构。
+PROJECT_ROOT = Path(__file__).resolve().parent
+MODULE_DIR = PROJECT_ROOT / "src" / "course_assistant"
+sys.path.insert(0, str(MODULE_DIR))
+
+# 导入之前已经写好的“读取 PDF、检索片段、生成回答”功能。
+from answer import answer_with_sources
+from retrieval import load_pdf, retrieve
+
+
+# 设置网页的标题和浏览器标签页文字。
+st.set_page_config(page_title="可信课程资料研究助手")
+st.title("可信课程资料研究助手")
+st.write("上传课程 PDF，提出问题，并查看回答所依据的资料页码。")
+
+# 让用户选择一个 PDF 文件。
+uploaded_file = st.file_uploader(
+    "上传课程 PDF",
+    type=["pdf"],
+)
+
+# 让用户输入问题。
+question = st.text_input(
+    "你想问什么？",
+    placeholder="例如：什么是深度学习？",
+)
+
+# 点击按钮后才开始读取 PDF、检索资料和调用模型。
+if st.button("提问"):
+    if uploaded_file is None:
+        st.warning("请先上传一个 PDF 文件。")
+
+    elif not question.strip():
+        st.warning("请先输入问题。")
+
+    else:
+        # 显示处理中提示，避免等待时页面看起来没有反应。
+        with st.spinner("正在读取资料并生成回答……"):
+            # 把上传的文件临时写到系统临时目录。
+            # delete=False 是为了先关闭文件，再交给 PDF 读取程序打开；
+            # Windows 下这样处理更稳妥。
+            with tempfile.NamedTemporaryFile(
+                suffix=".pdf",
+                delete=False,
+            ) as temporary_file:
+                temporary_file.write(uploaded_file.getvalue())
+                temporary_pdf_path = Path(temporary_file.name)
+
+            try:
+                # 读取 PDF，并切成可用于检索的文字片段。
+                chunks = load_pdf(temporary_pdf_path)
+
+                # load_pdf 使用临时文件名作为来源名称。
+                # 这里改成用户上传时看到的原始文件名，便于识别来源。
+                for chunk in chunks:
+                    chunk.source = uploaded_file.name
+
+                if not chunks:
+                    st.error(
+                        "没有从 PDF 中提取到文字。"
+                        "它可能是扫描版图片，暂时需要 OCR 才能读取。"
+                    )
+                else:
+                    # 找出与问题较相关的文字片段。
+                    results = retrieve(question, chunks)
+
+                    if not results:
+                        st.warning("没有检索到相关片段，暂时无法依据这份资料回答。")
+                    else:
+                        # 根据检索片段生成带资料编号的回答。
+                        answer = answer_with_sources(question, results)
+
+                        st.subheader("回答")
+                        st.markdown(answer)
+
+                        # 展开后可以检查模型回答依据的原文。
+                        with st.expander("查看检索到的资料原文"):
+                            for number, (chunk, score) in enumerate(
+                                results,
+                                start=1,
+                            ):
+                                st.markdown(
+                                    f"**[资料{number}] "
+                                    f"{chunk.source}，PDF 第 {chunk.page} 页**"
+                                )
+                                st.caption(f"片段匹配分数：{score:.3f}")
+                                st.write(chunk.text)
+
+            except Exception as error:
+                # 显示错误信息，方便发现 API 密钥、网络或 PDF 读取问题。
+                st.error(f"处理失败：{error}")
+
+            finally:
+                # 无论成功还是失败，都删除临时 PDF。
+                temporary_pdf_path.unlink(missing_ok=True)
