@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from answer import answer_with_sources
-from retrieval import load_pdf, retrieve
+from retrieval import load_pdf, retrieve_hybrid
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
     chunks = load_pdf(args.pdf)
 
     # 第二步：从片段中找与问题相关的内容。
-    results = retrieve(args.question, chunks)
+    results = retrieve_hybrid(args.question, chunks)
 
     if not results:
         print("没有检索到片段，暂时无法依据这份资料回答。")

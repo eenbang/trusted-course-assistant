@@ -1,4 +1,4 @@
-case_id,source_file,question,answerable,gold_pdf_pages,tfidf_top3_pages,tfidf_hit_at_3,semantic_top3_pages,semantic_top3_scores,semantic_hit_at_3
-1,d2l-zh.pdf,这本书的目标受众是？,true,24,24;454;25,true,30;44;804,0.468;0.456;0.444,false
-2,d2l-zh.pdf,这本书的受众是？,true,24,25;28;797,false,804;316;44,0.434;0.427;0.420,false
-3,d2l-zh.pdf,这本书主要面向谁？,true,24,529;147;25,false,21;46;69,0.473;0.451;0.449,false
+case_id,source_file,question,answerable,gold_pdf_pages,tfidf_top3_pages,tfidf_hit_at_3,semantic_top3_pages,semantic_top3_scores,semantic_hit_at_3,semantic_top20_pages,semantic_gold_rank,semantic_hit_at_20,hybrid_top3_pages,hybrid_top20_pages,hybrid_gold_rank,hybrid_hit_at_3,hybrid_hit_at_20
+1,d2l-zh.pdf,这本书的目标受众是？,true,24,24;454;25,true,30;44;804,0.468;0.456;0.444,false,30;44;804;316;34;44;26;21;805;596;45;14;409;813;47;596;46;599;253;36,,false,596;24;21,596;24;21;25;599;44;40;616;454;20;47;596;301;453;797;590;636;25;613;615,2,true,true
+2,d2l-zh.pdf,这本书的受众是？,true,24,25;28;797,false,804;316;44,0.434;0.427;0.420,false,804;316;44;805;808;44;813;807;316;21;810;811;46;810;24;30;24;354;45;810,15,true,25;21;24,25;21;24;797;24;25;798;20;23;28;408;409;725;36;40;19;162;798;300;804,3,true,true
+3,d2l-zh.pdf,这本书主要面向谁？,true,24,529;147;25,false,21;46;69,0.473;0.451;0.449,false,21;46;69;804;684;683;409;380;813;184;24;810;810;383;805;319;808;24;90;72,11,true,21;24;25,21;24;25;24;684;69;25;409;781;383;20;147;632;529;797;31;775;800;19;46,2,true,true

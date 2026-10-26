@@ -246,6 +246,38 @@ def retrieve_semantic(
     ]
 
 
+def retrieve_hybrid(
+    question: str,
+    chunks: list[TextChunk],
+    top_k: int = 3,
+    rrf_k: int = 60,
+):
+    """Fuse lexical and semantic rankings with Reciprocal Rank Fusion."""
+    if not chunks:
+        return []
+
+    # Use full rankings so a candidate highly ranked by either retriever is kept.
+    lexical = retrieve(question, chunks, top_k=len(chunks))
+    semantic = retrieve_semantic(question, chunks, top_k=len(chunks))
+    fused_scores: dict[int, float] = {}
+    chunk_indices = {id(chunk): index for index, chunk in enumerate(chunks)}
+
+    # RRF uses ranks instead of raw scores, whose scales differ by method.
+    for ranking in (lexical, semantic):
+        for rank, (chunk, _score) in enumerate(ranking, start=1):
+            index = chunk_indices[id(chunk)]
+            fused_scores[index] = fused_scores.get(index, 0.0) + 1.0 / (rrf_k + rank)
+
+    ranked_indices = sorted(
+        fused_scores,
+        key=lambda index: (-fused_scores[index], index),
+    )[:top_k]
+    return [
+        (chunks[index], fused_scores[index])
+        for index in ranked_indices
+    ]
+
+
 def main():
     # 创建一个命令行参数解析器
     parser = argparse.ArgumentParser(
@@ -255,9 +287,9 @@ def main():
     # 增加新参数
     parser.add_argument(
     "--method",
-    choices=["tfidf", "semantic"],
+    choices=["tfidf", "semantic", "hybrid"],
     default="tfidf",
-    help="选择检索方法：tfidf 或 semantic",
+    help="选择检索方法：tfidf、semantic 或 hybrid",
     )   
     # 第一个参数：PDF路径
     parser.add_argument("pdf", type=Path, help="PDF 文件路径")
@@ -278,6 +310,8 @@ def main():
 
     if args.method == "semantic":
         results = retrieve_semantic(args.question, chunks)
+    elif args.method == "hybrid":
+        results = retrieve_hybrid(args.question, chunks)
     else:
         results = retrieve(args.question, chunks)
 

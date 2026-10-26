@@ -11,7 +11,7 @@ sys.path.insert(0, str(MODULE_DIR))
 
 # 导入之前已经写好的“读取 PDF、检索片段、生成回答”功能。
 from answer import answer_with_sources
-from retrieval import load_pdf, retrieve
+from retrieval import load_pdf, retrieve_hybrid
 
 
 # 设置网页的标题和浏览器标签页文字。
@@ -72,7 +72,7 @@ if st.button("提问"):
                     )
                 else:
                     # 找出与问题较相关的文字片段。
-                    results = retrieve(question, chunks)
+                    results = retrieve_hybrid(question, chunks)
 
                     if not results:
                         st.warning("没有检索到相关片段，暂时无法依据这份资料回答。")
