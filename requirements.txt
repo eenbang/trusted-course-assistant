@@ -4,3 +4,5 @@ fonttools
 openai
 python-dotenv
 streamlit
+sentence-transformers
+numpy

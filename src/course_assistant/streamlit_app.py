@@ -1,13 +1,12 @@
 import sys
-import tempfile
+import hashlib
 from pathlib import Path
 
 import streamlit as st
 
-# 让网页程序能找到 src/course_assistant/ 里的现有代码。
-# 这是为了配合当前项目的目录结构。
-PROJECT_ROOT = Path(__file__).resolve().parent
-MODULE_DIR = PROJECT_ROOT / "src" / "course_assistant"
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+MODULE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(MODULE_DIR))
 
 # 导入之前已经写好的“读取 PDF、检索片段、生成回答”功能。
@@ -43,19 +42,23 @@ if st.button("提问"):
     else:
         # 显示处理中提示，避免等待时页面看起来没有反应。
         with st.spinner("正在读取资料并生成回答……"):
-            # 把上传的文件临时写到系统临时目录。
-            # delete=False 是为了先关闭文件，再交给 PDF 读取程序打开；
-            # Windows 下这样处理更稳妥。
-            with tempfile.NamedTemporaryFile(
-                suffix=".pdf",
-                delete=False,
-            ) as temporary_file:
-                temporary_file.write(uploaded_file.getvalue())
-                temporary_pdf_path = Path(temporary_file.name)
+            # Streamlit 每次运行脚本时都会重新执行本段代码。
+            # 用上传内容的哈希生成稳定文件名，让同一份 PDF 复用本地缓存。
+            uploaded_bytes = uploaded_file.getvalue()
+            file_hash = hashlib.sha256(uploaded_bytes).hexdigest()
+
+            # data/documents 已在 .gitignore 中忽略，不会提交到 GitHub。
+            documents_dir = PROJECT_ROOT / "data" / "documents"
+            documents_dir.mkdir(parents=True, exist_ok=True)
+            pdf_path = documents_dir / f"{file_hash}.pdf"
+
+            # 只有第一次上传这份文件时才写入本地；后续直接复用。
+            if not pdf_path.exists():
+                pdf_path.write_bytes(uploaded_bytes)
 
             try:
                 # 读取 PDF，并切成可用于检索的文字片段。
-                chunks = load_pdf(temporary_pdf_path)
+                chunks = load_pdf(pdf_path)
 
                 # load_pdf 使用临时文件名作为来源名称。
                 # 这里改成用户上传时看到的原始文件名，便于识别来源。
@@ -96,7 +99,3 @@ if st.button("提问"):
             except Exception as error:
                 # 显示错误信息，方便发现 API 密钥、网络或 PDF 读取问题。
                 st.error(f"处理失败：{error}")
-
-            finally:
-                # 无论成功还是失败，都删除临时 PDF。
-                temporary_pdf_path.unlink(missing_ok=True)
