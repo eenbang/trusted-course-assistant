@@ -24,6 +24,9 @@ class TextChunk:
 CHUNK_SIZE = 600
 CHUNK_OVERLAP = 80
 EMBEDDING_MODEL_NAME = "BAAI/bge-small-zh-v1.5"
+DEFAULT_RRF_K = 60
+DEFAULT_TFIDF_WEIGHT = 1.0
+DEFAULT_SEMANTIC_WEIGHT = 1.0
 
 def get_pdf_fingerprint(path: Path) -> str:
     """根据文件路径、大小和修改时间判断文件是否变化。"""
@@ -246,27 +249,40 @@ def retrieve_semantic(
     ]
 
 
-def retrieve_hybrid(
-    question: str,
+def fuse_rankings_with_rrf(
+    lexical: list[tuple[TextChunk, float]],
+    semantic: list[tuple[TextChunk, float]],
     chunks: list[TextChunk],
     top_k: int = 3,
-    rrf_k: int = 60,
+    rrf_k: int = DEFAULT_RRF_K,
+    tfidf_weight: float = DEFAULT_TFIDF_WEIGHT,
+    semantic_weight: float = DEFAULT_SEMANTIC_WEIGHT,
 ):
-    """Fuse lexical and semantic rankings with Reciprocal Rank Fusion."""
-    if not chunks:
+    """Fuse two rankings by weighted reciprocal rank."""
+    if rrf_k <= 0:
+        raise ValueError("rrf_k must be greater than 0")
+    if tfidf_weight < 0 or semantic_weight < 0:
+        raise ValueError("retriever weights must be non-negative")
+    if tfidf_weight == 0 and semantic_weight == 0:
+        raise ValueError("at least one retriever weight must be greater than 0")
+    if not chunks or top_k <= 0:
         return []
 
-    # Use full rankings so a candidate highly ranked by either retriever is kept.
-    lexical = retrieve(question, chunks, top_k=len(chunks))
-    semantic = retrieve_semantic(question, chunks, top_k=len(chunks))
     fused_scores: dict[int, float] = {}
     chunk_indices = {id(chunk): index for index, chunk in enumerate(chunks)}
 
-    # RRF uses ranks instead of raw scores, whose scales differ by method.
-    for ranking in (lexical, semantic):
+    rankings_with_weights = (
+        (lexical, tfidf_weight),
+        (semantic, semantic_weight),
+    )
+    for ranking, weight in rankings_with_weights:
+        if weight == 0:
+            continue
         for rank, (chunk, _score) in enumerate(ranking, start=1):
             index = chunk_indices[id(chunk)]
-            fused_scores[index] = fused_scores.get(index, 0.0) + 1.0 / (rrf_k + rank)
+            fused_scores[index] = (
+                fused_scores.get(index, 0.0) + weight / (rrf_k + rank)
+            )
 
     ranked_indices = sorted(
         fused_scores,
@@ -276,6 +292,32 @@ def retrieve_hybrid(
         (chunks[index], fused_scores[index])
         for index in ranked_indices
     ]
+
+
+def retrieve_hybrid(
+    question: str,
+    chunks: list[TextChunk],
+    top_k: int = 3,
+    rrf_k: int = DEFAULT_RRF_K,
+    tfidf_weight: float = DEFAULT_TFIDF_WEIGHT,
+    semantic_weight: float = DEFAULT_SEMANTIC_WEIGHT,
+):
+    """Fuse lexical and semantic rankings with Reciprocal Rank Fusion."""
+    if not chunks:
+        return []
+
+    # Use full rankings so a candidate highly ranked by either retriever is kept.
+    lexical = retrieve(question, chunks, top_k=len(chunks))
+    semantic = retrieve_semantic(question, chunks, top_k=len(chunks))
+    return fuse_rankings_with_rrf(
+        lexical,
+        semantic,
+        chunks,
+        top_k=top_k,
+        rrf_k=rrf_k,
+        tfidf_weight=tfidf_weight,
+        semantic_weight=semantic_weight,
+    )
 
 
 def main():
@@ -290,7 +332,25 @@ def main():
     choices=["tfidf", "semantic", "hybrid"],
     default="tfidf",
     help="选择检索方法：tfidf、semantic 或 hybrid",
-    )   
+    )
+    parser.add_argument(
+        "--rrf-k",
+        type=int,
+        default=DEFAULT_RRF_K,
+        help="混合检索的 RRF 常数",
+    )
+    parser.add_argument(
+        "--tfidf-weight",
+        type=float,
+        default=DEFAULT_TFIDF_WEIGHT,
+        help="混合检索中的 TF-IDF 排名权重",
+    )
+    parser.add_argument(
+        "--semantic-weight",
+        type=float,
+        default=DEFAULT_SEMANTIC_WEIGHT,
+        help="混合检索中的语义排名权重",
+    )
     # 第一个参数：PDF路径
     parser.add_argument("pdf", type=Path, help="PDF 文件路径")
     # 第二个参数：查询的问题
@@ -311,7 +371,13 @@ def main():
     if args.method == "semantic":
         results = retrieve_semantic(args.question, chunks)
     elif args.method == "hybrid":
-        results = retrieve_hybrid(args.question, chunks)
+        results = retrieve_hybrid(
+            args.question,
+            chunks,
+            rrf_k=args.rrf_k,
+            tfidf_weight=args.tfidf_weight,
+            semantic_weight=args.semantic_weight,
+        )
     else:
         results = retrieve(args.question, chunks)
 
